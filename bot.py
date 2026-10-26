@@ -7,7 +7,7 @@ import os
 
 # --- ВСТАВЬ СВОИ ДАННЫЕ СЮДА ---
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-POLLINATIONS_KEY = os.getenv("POLLINATIONS_KEY")
+POLLINATIONS_KEY = "sk_Hm0rVyHlZktpjZ6FDrHFq2K0XBGCdOh5"
 AGENT_ID = "community/FakGrak-gif/arena-bot" 
 
 # --- НИЖЕ НИЧЕГО МЕНЯТЬ НЕ НУЖНО ---
