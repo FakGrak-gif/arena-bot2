@@ -71,13 +71,23 @@ async def update_role(member, role_prefix, amount):
     await member.add_roles(role)
 
 def get_balance(member, role_prefix):
+    # Если роль называется "Арена 1", а префикс "Арена", этот код сработает
     for role in member.roles:
-        if role.name.startswith(f"{role_prefix} "):
+        if role.name.startswith(f"{role_prefix}"):
             try:
-                return int(role.name.split(" ")[1].strip())
+                # Берем последнее слово в названии роли (число)
+                return int(role.name.split()[-1])
             except:
                 pass
     return 0
+
+@bot.event
+async def on_ready():
+    print(f'Бот {bot.user} успешно запущен!')
+    # Принудительно обновляем кэш участников, чтобы бот сразу видел всех
+    for guild in bot.guilds:
+        await guild.chunk()
+    print("Кэш участников обновлен.")
 
 class ExchangeView(discord.ui.View):
     def __init__(self):
@@ -238,9 +248,9 @@ async def process_arena_action(channel, user, user_text):
                 await channel.send(f"💰 *Начислено {reward} монет!*")
                 
                 # --- СОХРАНЕНИЕ РЕКОРДА АРЕНЫ ---
-                current_record = get_balance(user, "🏆 Арена")
+                current_record = get_balance(user, "Арена")
                 if level > current_record:
-                    await update_role(user, "🏆 Арена", level)
+                    await update_role(user, "Арена", level)
                     await channel.send(f"🏆 *Новый рекорд Арены: {level} уровень!*")
 
             elif "Твоя история окончена" in bot_reply:
@@ -308,7 +318,6 @@ async def on_message(message):
     if clean_lower == "!топ":
         top_text = "🏆 **ТАБЛИЦА ЛИДЕРОВ** 🏆\n\n"
         
-        # Топ по деньгам
         players_money = []
         players_arena = []
         for m in message.guild.members:
@@ -317,7 +326,7 @@ async def on_message(message):
                 if coins > 0: 
                     players_money.append((m.display_name, coins))
                 
-                arena_lvl = get_balance(m, "🏆 Арена")
+                arena_lvl = get_balance(m, "Арена")
                 if arena_lvl > 0:
                     players_arena.append((m.display_name, arena_lvl))
                     
@@ -326,7 +335,7 @@ async def on_message(message):
         
         top_text += "💰 **Самые богатые:**\n"
         if players_money:
-            for i, p in enumerate(players_money[:5], 1): # Топ-5, чтобы не растягивать
+            for i, p in enumerate(players_money[:5], 1):
                 top_text += f"{i}. **{p[0]}** — {p[1]} монет\n"
         else:
             top_text += "*Пока ни у кого нет монет.*\n"
@@ -339,6 +348,12 @@ async def on_message(message):
             top_text += "*Пока никто не проходил Арену.*\n"
             
         await message.reply(top_text)
+        return
+        
+    # --- ПРОВЕРКА РОЛЕЙ ---
+    if clean_lower == "!проверка":
+        roles_list = [role.name for role in message.author.roles if role.name != "@everyone"]
+        await message.reply(f"Ваши роли: {', '.join(roles_list)}\n\nБот видит уровень Арены: {get_balance(message.author, 'Арена')}")
         return
 
     if message.channel.id == ARENA_CHANNEL_ID and (bot.user.mentioned_in(message) or any(w in clean_lower for w in ["сброс", "старт", "начать"])):
