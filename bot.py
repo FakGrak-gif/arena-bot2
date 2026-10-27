@@ -71,11 +71,9 @@ async def update_role(member, role_prefix, amount):
     await member.add_roles(role)
 
 def get_balance(member, role_prefix):
-    # Если роль называется "Арена 1", а префикс "Арена", этот код сработает
     for role in member.roles:
         if role.name.startswith(f"{role_prefix}"):
             try:
-                # Берем последнее слово в названии роли (число)
                 return int(role.name.split()[-1])
             except:
                 pass
@@ -84,7 +82,6 @@ def get_balance(member, role_prefix):
 @bot.event
 async def on_ready():
     print(f'Бот {bot.user} успешно запущен!')
-    # Принудительно обновляем кэш участников, чтобы бот сразу видел всех
     for guild in bot.guilds:
         await guild.chunk()
     print("Кэш участников обновлен.")
@@ -247,7 +244,6 @@ async def process_arena_action(channel, user, user_text):
                 await update_role(user, "💰", current_coins + reward)
                 await channel.send(f"💰 *Начислено {reward} монет!*")
                 
-                # --- СОХРАНЕНИЕ РЕКОРДА АРЕНЫ ---
                 current_record = get_balance(user, "Арена")
                 if level > current_record:
                     await update_role(user, "Арена", level)
@@ -279,15 +275,36 @@ async def on_message(message):
         await message.reply(f"💱 Баланс: {dollars}$\nКурс: 1000$ = 1 монета", view=ExchangeView())
         return
 
+    # --- РАБОТА ---
     if message.channel.id == WORK_CHANNEL_ID and clean_text == "!":
         if time.time() - work_cooldowns.get(message.author.id, 0) < 3600:
-            await message.reply("❌ Отдохни еще час.")
+            remain = int((3600 - (time.time() - work_cooldowns.get(message.author.id, 0))) / 60)
+            await message.reply(f"❌ Ты устал. Отдохни еще {remain} минут.")
             return
-        earnings = random.randint(50, 400)
+            
+        event_roll = random.randint(1, 100)
         current_dollars = get_balance(message.author, "💵")
-        await update_role(message.author, "💵", current_dollars + earnings)
+        
+        if event_roll <= 40:
+            earnings = random.randint(50, 200)
+            await update_role(message.author, "💵", current_dollars + earnings)
+            msg = f"💼 Вам удалось найти подработку, и вы заработали **{earnings}$**!"
+        elif event_roll <= 70:
+            earnings = random.randint(100, 300)
+            await update_role(message.author, "💵", current_dollars + earnings)
+            msg = f"🤝 Пока вы работали, щедрый клиент оставил на чай **{earnings}$**!"
+        elif event_roll <= 90:
+            earnings = random.randint(150, 400)
+            await update_role(message.author, "💵", current_dollars + earnings)
+            msg = f"🌟 Вам удалось найти выгодное предложение о работе! Вы получили **{earnings}$**!"
+        else:
+            loss = min(100, current_dollars) # Не уходим в минус
+            await update_role(message.author, "💵", current_dollars - loss)
+            msg = f"💀 В поисках работы вас обманули! Вы потеряли **{loss}$**."
+
         work_cooldowns[message.author.id] = time.time()
-        await message.reply(f"💼 Вы заработали **{earnings}$**!")
+        final_dollars = get_balance(message.author, "💵")
+        await message.reply(f"{msg}\n*(Текущий баланс: {final_dollars}$)*")
         return
 
     # --- КАЗИНО ---
