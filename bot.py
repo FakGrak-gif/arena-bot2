@@ -275,7 +275,7 @@ async def on_message(message):
         await message.reply(f"💱 Баланс: {dollars}$\nКурс: 1000$ = 1 монета", view=ExchangeView())
         return
 
-    # --- РАБОТА (ТОЛЬКО В КАНАЛЕ РАБОТЫ) ---
+    # --- РАБОТА ---
     if message.channel.id == WORK_CHANNEL_ID and clean_text == "!":
         if time.time() - work_cooldowns.get(message.author.id, 0) < 3600:
             remain = int((3600 - (time.time() - work_cooldowns.get(message.author.id, 0))) / 60)
@@ -307,7 +307,7 @@ async def on_message(message):
         await message.reply(f"{msg}\n*(Текущий баланс: {final_dollars}$)*")
         return
 
-    # --- КАЗИНО (ТОЛЬКО В КАНАЛАХ КАЗИНО) ---
+    # --- КАЗИНО (С ЭМОДЗИ-ЦИФРАМИ) ---
     if clean_text.startswith("!") and message.channel.id in [CHANNEL_ID_1, CHANNEL_ID_2]:
         if re.match(r'^!(?:\s*)(\d+)?$', clean_lower):
             bet = int(clean_lower.replace("!", "").strip() or 1)
@@ -317,18 +317,35 @@ async def on_message(message):
                 return
             await update_role(message.author, "💰", current_coins - bet)
             
+            emoji_map = {1: "1️⃣", 2: "2️⃣", 3: "3️⃣", 4: "4️⃣", 5: "5️⃣", 6: "6️⃣", 7: "7️⃣", 8: "8️⃣", 9: "9️⃣"}
             roll = random.randint(1, 200)
+            
             if roll == 1:
+                slot_text = "7️⃣ 7️⃣ 7️⃣"
                 casino_jackpot += 20
                 await update_role(message.author, "💰", current_coins + bet + casino_jackpot)
-                await message.reply(f"🏆 **ДЖЕКПОТ!** Вы забрали {casino_jackpot} монет!")
+                await message.reply(f"🏆 **ДЖЕКПОТ!** {slot_text}\nВы забрали {casino_jackpot} монет!")
                 casino_jackpot = 0
             elif roll <= 90:
+                # Генерируем две одинаковые цифры для визуала
+                d1 = random.randint(1, 9)
+                d2 = random.randint(1, 9)
+                if d1 == d2: d2 = (d2 % 9) + 1
+                slot_text = f"{emoji_map[d1]} {emoji_map[d1]} {emoji_map[d2]}"
                 await update_role(message.author, "💰", current_coins + bet + 2)
-                await message.reply(f"🎉 Вы выиграли +2 монеты! (Джекпот: {casino_jackpot})")
+                await message.reply(f"🎉 {slot_text}\nВы выиграли +2 монеты! (Джекпот: {casino_jackpot})")
             else:
+                # Генерируем три разные цифры для визуала
+                d1 = random.randint(1, 9)
+                d2 = random.randint(1, 9)
+                d3 = random.randint(1, 9)
+                while d1 == d2 or d2 == d3 or d1 == d3:
+                    d1 = random.randint(1, 9)
+                    d2 = random.randint(1, 9)
+                    d3 = random.randint(1, 9)
+                slot_text = f"{emoji_map[d1]} {emoji_map[d2]} {emoji_map[d3]}"
                 casino_jackpot += 1
-                await message.reply(f"🎲 Вы проиграли. (Джекпот: {casino_jackpot})")
+                await message.reply(f"🎲 {slot_text}\nВы проиграли. (Джекпот: {casino_jackpot})")
             return
 
     # --- ЕДИНЫЙ ТОП ---
