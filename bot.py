@@ -285,18 +285,25 @@ async def on_message(message):
         event_roll = random.randint(1, 100)
         current_dollars = get_balance(message.author, "💵")
         
-        if event_roll <= 40:
+        # 45% Обычная работа
+        if event_roll <= 45:
             earnings = random.randint(50, 200)
             await update_role(message.author, "💵", current_dollars + earnings)
             msg = f"💼 Вам удалось найти подработку, и вы заработали **{earnings}$**!"
-        elif event_roll <= 70:
+        
+        # 30% Щедрый клиент
+        elif event_roll <= 75:
             earnings = random.randint(100, 300)
             await update_role(message.author, "💵", current_dollars + earnings)
             msg = f"🤝 Пока вы работали, щедрый клиент оставил на чай **{earnings}$**!"
-        elif event_roll <= 90:
+        
+        # 20% Выгодное предложение
+        elif event_roll <= 95:
             earnings = random.randint(150, 400)
             await update_role(message.author, "💵", current_dollars + earnings)
             msg = f"🌟 Вам удалось найти выгодное предложение о работе! Вы получили **{earnings}$**!"
+        
+        # 5% Обман
         else:
             loss = min(100, current_dollars) # Не уходим в минус
             await update_role(message.author, "💵", current_dollars - loss)
