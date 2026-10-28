@@ -275,7 +275,7 @@ async def on_message(message):
         await message.reply(f"💱 Баланс: {dollars}$\nКурс: 1000$ = 1 монета", view=ExchangeView())
         return
 
-    # --- РАБОТА ---
+    # --- РАБОТА (ТОЛЬКО В КАНАЛЕ РАБОТЫ) ---
     if message.channel.id == WORK_CHANNEL_ID and clean_text == "!":
         if time.time() - work_cooldowns.get(message.author.id, 0) < 3600:
             remain = int((3600 - (time.time() - work_cooldowns.get(message.author.id, 0))) / 60)
@@ -285,27 +285,20 @@ async def on_message(message):
         event_roll = random.randint(1, 100)
         current_dollars = get_balance(message.author, "💵")
         
-        # 45% Обычная работа
         if event_roll <= 45:
             earnings = random.randint(50, 200)
             await update_role(message.author, "💵", current_dollars + earnings)
             msg = f"💼 Вам удалось найти подработку, и вы заработали **{earnings}$**!"
-        
-        # 30% Щедрый клиент
         elif event_roll <= 75:
             earnings = random.randint(100, 300)
             await update_role(message.author, "💵", current_dollars + earnings)
             msg = f"🤝 Пока вы работали, щедрый клиент оставил на чай **{earnings}$**!"
-        
-        # 20% Выгодное предложение
         elif event_roll <= 95:
             earnings = random.randint(150, 400)
             await update_role(message.author, "💵", current_dollars + earnings)
             msg = f"🌟 Вам удалось найти выгодное предложение о работе! Вы получили **{earnings}$**!"
-        
-        # 5% Обман
         else:
-            loss = min(100, current_dollars) # Не уходим в минус
+            loss = min(100, current_dollars)
             await update_role(message.author, "💵", current_dollars - loss)
             msg = f"💀 В поисках работы вас обманули! Вы потеряли **{loss}$**."
 
@@ -314,7 +307,7 @@ async def on_message(message):
         await message.reply(f"{msg}\n*(Текущий баланс: {final_dollars}$)*")
         return
 
-    # --- КАЗИНО ---
+    # --- КАЗИНО (ТОЛЬКО В КАНАЛАХ КАЗИНО) ---
     if clean_text.startswith("!") and message.channel.id in [CHANNEL_ID_1, CHANNEL_ID_2]:
         if re.match(r'^!(?:\s*)(\d+)?$', clean_lower):
             bet = int(clean_lower.replace("!", "").strip() or 1)
@@ -380,7 +373,8 @@ async def on_message(message):
         await message.reply(f"Ваши роли: {', '.join(roles_list)}\n\nБот видит уровень Арены: {get_balance(message.author, 'Арена')}")
         return
 
-    if message.channel.id == ARENA_CHANNEL_ID and (bot.user.mentioned_in(message) or any(w in clean_lower for w in ["сброс", "старт", "начать"])):
+    # --- АРЕНА (В ЛЮБОМ КАНАЛЕ ПРИ ПИНГЕ) ---
+    if bot.user.mentioned_in(message) or any(w in clean_lower for w in ["сброс", "старт", "начать"]):
         if any(w in clean_lower for w in ["сброс", "старт", "начать"]):
             await message.reply("Начинаем! Выбери расу:", view=RaceView())
         else:
