@@ -3,6 +3,7 @@ import random
 from config import CHANNEL_ID_1, CHANNEL_ID_2
 from database import update_role, get_balance
 
+# Глобальная переменная для джекпота
 casino_jackpot = 0
 
 class ExchangeView(discord.ui.View):
@@ -28,7 +29,20 @@ class ExchangeView(discord.ui.View):
     async def btn_10000(self, interaction: discord.Interaction, button: discord.ui.Button): await self.exchange(interaction, 10000)
 
 async def play_casino(message, bet):
-    global casino_jackpot
+    global casino_jackpot # Объявляем, что меняем глобальную переменную
+    
+    # --- ПРОВЕРКА КАНАЛА И СТАВКИ ---
+    if message.channel.id == CHANNEL_ID_1:
+        if bet < 1 or bet > 50:
+            await message.reply("❌ В этом канале ставка должна быть от **1** до **50** монет!")
+            return
+    elif message.channel.id == CHANNEL_ID_2:
+        if bet < 10 or bet > 1000:
+            await message.reply("❌ В VIP-казино ставка должна быть от **10** до **1000** монет!")
+            return
+    else:
+        return
+
     current_coins = get_balance(message.author, "💰")
     if current_coins < bet:
         await message.reply("❌ Недостаточно монет.")
