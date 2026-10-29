@@ -6,6 +6,7 @@ from arena import RaceView, process_arena_action
 from casino import ExchangeView, play_casino, RouletteView
 from work import do_work
 from shop import ShopView
+from roasts import check_for_roast # <--- ДОБАВИЛИ ИМПОРТ
 
 intents = discord.Intents.default()
 intents.message_content = True 
@@ -26,6 +27,13 @@ async def on_message(message):
 
     clean_text = message.content.replace(f'<@{bot.user.id}>', '').strip()
     clean_lower = clean_text.lower()
+
+    # --- ПРОВЕРКА НА ОСКОРБЛЕНИЯ (ТОЛЬКО В WORK И CASINO) ---
+    if message.channel.id in [WORK_CHANNEL_ID, CHANNEL_ID_1, CHANNEL_ID_2]:
+        roast = check_for_roast(message)
+        if roast:
+            await message.reply(roast)
+            return # Прерываем выполнение, чтобы бот не делал других действий
 
     # --- МАГАЗИН ---
     if clean_lower == "!магазин":
@@ -53,7 +61,6 @@ async def on_message(message):
         if len(parts) > 1 and parts[1].isdigit():
             bet = int(parts[1])
             
-        # Проверяем лимиты канала
         if message.channel.id == CHANNEL_ID_1:
             if bet < 1 or bet > 50:
                 await message.reply("❌ В этом канале ставка от 1 до 50 монет!")
