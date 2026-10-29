@@ -1,8 +1,9 @@
 import discord
+import re
 from config import DISCORD_TOKEN, CHANNEL_ID_1, CHANNEL_ID_2, ARENA_CHANNEL_ID, WORK_CHANNEL_ID, SHOP_ITEMS
 from database import get_balance
 from arena import RaceView, process_arena_action
-from casino import ExchangeView, play_casino
+from casino import ExchangeView, play_casino, RouletteView
 from work import do_work
 from shop import ShopView
 
@@ -26,6 +27,7 @@ async def on_message(message):
     clean_text = message.content.replace(f'<@{bot.user.id}>', '').strip()
     clean_lower = clean_text.lower()
 
+    # --- МАГАЗИН ---
     if clean_lower == "!магазин":
         shop_text = "🛒 **Магазин**\n"
         for key, item in SHOP_ITEMS.items():
@@ -33,22 +35,45 @@ async def on_message(message):
         await message.reply(shop_text, view=ShopView())
         return
 
+    # --- ОБМЕН ВАЛЮТ ---
     if clean_lower in ["!обмен", "!обменять"]:
         dollars = get_balance(message.author, "💵")
         await message.reply(f"💱 Баланс: {dollars}$\nКурс: 1000$ = 1 монета", view=ExchangeView())
         return
 
+    # --- РАБОТА ---
     if message.channel.id == WORK_CHANNEL_ID and clean_text == "!":
         await do_work(message)
         return
 
+    # --- РУЛЕТКА ---
+    if clean_lower.startswith("!рулетка") and message.channel.id in [CHANNEL_ID_1, CHANNEL_ID_2]:
+        parts = clean_lower.split()
+        bet = 1
+        if len(parts) > 1 and parts[1].isdigit():
+            bet = int(parts[1])
+            
+        # Проверяем лимиты канала
+        if message.channel.id == CHANNEL_ID_1:
+            if bet < 1 or bet > 50:
+                await message.reply("❌ В этом канале ставка от 1 до 50 монет!")
+                return
+        elif message.channel.id == CHANNEL_ID_2:
+            if bet < 10 or bet > 1000:
+                await message.reply("❌ В VIP-казино ставка от 10 до 1000 монет!")
+                return
+        
+        await message.reply(f"🎰 **Рулетка**\nВаша ставка: **{bet}** монет.\nВыберите цвет:", view=RouletteView(bet))
+        return
+
+    # --- СЛОТЫ ---
     if clean_text.startswith("!") and message.channel.id in [CHANNEL_ID_1, CHANNEL_ID_2]:
-        import re
         if re.match(r'^!(?:\s*)(\d+)?$', clean_lower):
             bet = int(clean_lower.replace("!", "").strip() or 1)
             await play_casino(message, bet)
             return
 
+    # --- ТОП ---
     if clean_lower == "!топ":
         top_text = "🏆 **ТАБЛИЦА ЛИДЕРОВ** 🏆\n\n"
         players_money = []
@@ -80,6 +105,7 @@ async def on_message(message):
         await message.reply(top_text)
         return
 
+    # --- АРЕНА ---
     if bot.user.mentioned_in(message) or any(w in clean_lower for w in ["сброс", "старт", "начать"]):
         if any(w in clean_lower for w in ["сброс", "старт", "начать"]):
             await message.reply("Начинаем! Выбери расу:", view=RaceView())
