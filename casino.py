@@ -3,8 +3,10 @@ import random
 from config import CHANNEL_ID_1, CHANNEL_ID_2
 from database import update_role, get_balance
 
+# Глобальная переменная для джекпота
 casino_jackpot = 0
 
+# --- КНОПКИ ОБМЕНА ВАЛЮТ ---
 class ExchangeView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -27,10 +29,68 @@ class ExchangeView(discord.ui.View):
     @discord.ui.button(label="10000$", style=discord.ButtonStyle.danger)
     async def btn_10000(self, interaction: discord.Interaction, button: discord.ui.Button): await self.exchange(interaction, 10000)
 
+# --- КНОПКИ РУЛЕТКИ ---
+class RouletteView(discord.ui.View):
+    def __init__(self, bet: int):
+        super().__init__(timeout=60)
+        self.bet = bet
+
+    async def play(self, interaction: discord.Interaction, choice: str):
+        # Сначала списываем ставку
+        current_coins = get_balance(interaction.user, "💰")
+        if current_coins < self.bet:
+            await interaction.response.send_message("❌ Недостаточно монет.", ephemeral=True)
+            return
+        
+        await update_role(interaction.user, "💰", current_coins - self.bet)
+        
+        # Крутим рулетку (0-36, где 0 - зеро)
+        result = random.randint(0, 36)
+        
+        # Визуал
+        if result == 0:
+            color = "🟢 Зеро"
+            color_code = "green"
+        elif result % 2 == 0:
+            color = "⚫ Черное"
+            color_code = "black"
+        else:
+            color = "🔴 Красное"
+            color_code = "red"
+            
+        # Подсчет выигрыша
+        win_amount = 0
+        if choice == "red" and color_code == "red":
+            win_amount = self.bet * 2 # Возврат ставки + x1
+        elif choice == "black" and color_code == "black":
+            win_amount = self.bet * 2
+        elif choice == "green" and color_code == "green":
+            win_amount = self.bet * 14 # Джекпот за зеро
+            
+        if win_amount > 0:
+            new_coins = current_coins - self.bet + win_amount
+            await update_role(interaction.user, "💰", new_coins)
+            await interaction.response.send_message(f"🎲 Выпало **{color}** (число {result}).\n🎉 Вы выиграли **{win_amount}** монет!\n*(Баланс: {new_coins})*")
+        else:
+            await interaction.response.send_message(f"🎲 Выпало **{color}** (число {result}).\n💀 Вы проиграли ставку **{self.bet}** монет.\n*(Баланс: {current_coins - self.bet})*")
+
+    @discord.ui.button(label="Красное", style=discord.ButtonStyle.danger, emoji="🔴")
+    async def red(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.play(interaction, "red")
+
+    @discord.ui.button(label="Черное", style=discord.ButtonStyle.secondary, emoji="⚫")
+    async def black(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.play(interaction, "black")
+
+    @discord.ui.button(label="Зеро (x14)", style=discord.ButtonStyle.success, emoji="🟢")
+    async def green(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.play(interaction, "green")
+
+# --- ЛОГИКА СЛОТОВ ---
 async def play_casino(message, bet):
     global casino_jackpot
     
-    # --- ПРОВЕРКА КАНАЛА И СТАВКИ ---
+    # Проверка канала и лимитов
     if message.channel.id == CHANNEL_ID_1:
         if bet < 1 or bet > 50:
             await message.reply("❌ В этом канале ставка должна быть от **1** до **50** монет!")
@@ -58,7 +118,7 @@ async def play_casino(message, bet):
     if roll == 1:
         slot_text = "7️⃣ 7️⃣ 7️⃣"
         jackpot_win = casino_jackpot
-        casino_jackpot = 0 # Обнуляем банк
+        casino_jackpot = 0 
         
         if is_vip:
             win_amount = max(1, int(bet * 3.0))
@@ -78,11 +138,11 @@ async def play_casino(message, bet):
         slot_text = f"{emoji_map[d1]} {emoji_map[d1]} {emoji_map[d2]}"
         
         if is_vip:
-            win_amount = max(1, int(bet * 0.5)) # +50% в VIP
+            win_amount = max(1, int(bet * 0.5))
         else:
-            win_amount = 1 # Фиксированная +1 в обычном
+            win_amount = 1
             
-        win_coins = current_coins - bet + bet + win_amount # Возврат ставки + выигрыш
+        win_coins = current_coins - bet + bet + win_amount
         await update_role(message.author, "💰", win_coins)
         casino_jackpot += 1
         await message.reply(f"🎉 {slot_text}\nВы выиграли +{win_amount} монет!\n*(Баланс: {win_coins})*\n*(Джекпот казино: {casino_jackpot})*")
