@@ -1,6 +1,7 @@
 import discord
 import re
 import os
+import time
 from openai import OpenAI
 from config import POLLINATIONS_KEY, AGENT_ID, ARENA_REWARDS
 from database import update_role, get_balance
@@ -9,6 +10,8 @@ client = OpenAI(base_url="https://gen.pollinations.ai/v1", api_key=POLLINATIONS_
 
 chat_histories = {}
 user_choices = {}
+arena_cooldowns = {} # Кулдаун арены
+game_active = {}     # Флаг: идет ли игра
 
 # --- ВЬЮШКИ ДЛЯ АРЕНЫ ---
 class RaceView(discord.ui.View):
@@ -37,6 +40,7 @@ class ClassView(discord.ui.View):
         await interaction.response.send_message(f"✅ Твой выбор: **{race} {class_name}**", ephemeral=True)
         text_to_ai = f"Я выбираю расу {race} и класс {class_name}"
         chat_histories[interaction.channel.id] = [{"role": "user", "content": text_to_ai}]
+        game_active[interaction.user.id] = True
         await process_arena_action(interaction.channel, interaction.user, text_to_ai)
     @discord.ui.button(label="Воин", style=discord.ButtonStyle.primary)
     async def warrior(self, interaction: discord.Interaction, button: discord.ui.Button): await self.pick_class(interaction, "Воин")
@@ -82,12 +86,27 @@ class VictoryView(discord.ui.View):
         await interaction.response.defer()
         await process_arena_action(interaction.channel, interaction.user, action_text)
     @discord.ui.button(label="Забрать монеты", style=discord.ButtonStyle.success, emoji="💰")
-    async def take_money(self, interaction: discord.Interaction, button: discord.ui.Button): await self.send_action(interaction, "Уйти")
+    async def take_money(self, interaction: discord.Interaction, button: discord.ui.Button): 
+        game_active[interaction.user.id] = False # Игра окончена
+        await self.send_action(interaction, "Уйти")
     @discord.ui.button(label="Идти дальше", style=discord.ButtonStyle.primary, emoji="🚪")
     async def continue_run(self, interaction: discord.Interaction, button: discord.ui.Button): await self.send_action(interaction, "Продолжить")
 
-# --- ОСНОВНАЯ ЛОГИКА АРЕНЫ ---
+# --- КНОПКА ВЫХОДА ИЗ ОГЛУШЕНИЯ ---
+class StunnedView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+    @discord.ui.button(label="Выйти из оглушения", style=discord.ButtonStyle.secondary, emoji="💫")
+    async def wake_up(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        await process_arena_action(interaction.channel, interaction.user, "Я выхожу из оглушения")
+
+# --- ЛОГИКА АРЕНЫ ---
 async def process_arena_action(channel, user, user_text):
+    if not game_active.get(user.id, False):
+        await channel.send("❌ Твоя история окончена. Напиши `@Fbot старт`, чтобы начать заново.")
+        return
+        
     if channel.id not in chat_histories:
         chat_histories[channel.id] = []
     chat_histories[channel.id].append({"role": "user", "content": user_text})
@@ -104,7 +123,11 @@ async def process_arena_action(channel, user, user_text):
             chat_histories[channel.id].append({"role": "assistant", "content": bot_reply})
             
             view_to_send = None
-            if "Уйти" in bot_reply or "Продолжить" in bot_reply:
+            
+            # Проверка на оглушение игрока
+            if "оглушен" in bot_reply.lower() or "пропускаешь ход" in bot_reply.lower():
+                view_to_send = StunnedView()
+            elif "Уйти" in bot_reply or "Продолжить" in bot_reply:
                 view_to_send = VictoryView()
             elif "действия" in bot_reply.lower() or "[Противник]" in bot_reply:
                 view_to_send = CombatView()
@@ -127,7 +150,8 @@ async def process_arena_action(channel, user, user_text):
                     await update_role(user, "Арена", level)
                     await channel.send(f"🏆 *Новый рекорд Арены: {level} уровень!*")
 
-            elif "Твоя история окончена" in bot_reply:
+            elif "Твоя история окончена" in bot_reply or "Ты пал" in bot_reply:
+                game_active[user.id] = False # Игра окончена
                 await update_role(user, "💰", current_coins // 2)
         except Exception as e:
             print(f"Ошибка ИИ: {e}")
