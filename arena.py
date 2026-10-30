@@ -89,7 +89,6 @@ class VictoryView(discord.ui.View):
     async def take_money(self, interaction: discord.Interaction, button: discord.ui.Button): 
         game_active[interaction.user.id] = False 
         
-        # Начисляем монеты ЗДЕСЬ
         level = current_arena_level.get(interaction.user.id, 1)
         reward = ARENA_REWARDS.get(level, 1)
         current_coins = get_balance(interaction.user, "💰")
@@ -100,6 +99,7 @@ class VictoryView(discord.ui.View):
         current_record = get_balance(interaction.user, "Арена")
         if level > current_record:
             await update_role(interaction.user, "Арена", level)
+            await interaction.channel.send(f"🏆 *Новый рекорд Арены: {level} уровень!*")
             
         await interaction.response.send_message(f"✅ Ты покинул арену и забрал **{reward}** монет! (Баланс: {current_coins + reward})", ephemeral=True)
         await interaction.channel.send("🏆 *Твои монеты сохранены!*")
