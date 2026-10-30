@@ -10,8 +10,8 @@ client = OpenAI(base_url="https://gen.pollinations.ai/v1", api_key=POLLINATIONS_
 
 chat_histories = {}
 user_choices = {}
-arena_cooldowns = {} # Кулдаун арены
-game_active = {}     # Флаг: идет ли игра
+arena_cooldowns = {}
+game_active = {}
 
 # --- ВЬЮШКИ ДЛЯ АРЕНЫ ---
 class RaceView(discord.ui.View):
@@ -92,7 +92,6 @@ class VictoryView(discord.ui.View):
     @discord.ui.button(label="Идти дальше", style=discord.ButtonStyle.primary, emoji="🚪")
     async def continue_run(self, interaction: discord.Interaction, button: discord.ui.Button): await self.send_action(interaction, "Продолжить")
 
-# --- КНОПКА ВЫХОДА ИЗ ОГЛУШЕНИЯ ---
 class StunnedView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -124,7 +123,6 @@ async def process_arena_action(channel, user, user_text):
             
             view_to_send = None
             
-            # Проверка на оглушение игрока
             if "оглушен" in bot_reply.lower() or "пропускаешь ход" in bot_reply.lower():
                 view_to_send = StunnedView()
             elif "Уйти" in bot_reply or "Продолжить" in bot_reply:
@@ -137,8 +135,9 @@ async def process_arena_action(channel, user, user_text):
             else:
                 await channel.send(bot_reply)
 
-            current_coins = get_balance(user, "💰")
+            # Начисление монет только если игрок выбрал "Уйти" или перешел на новый уровень
             if "Толпа ликует" in bot_reply or "награду за уровень" in bot_reply:
+                current_coins = get_balance(user, "💰")
                 level_match = re.search(r'уровень\s*(\d+)', bot_reply.lower())
                 level = int(level_match.group(1)) if level_match else 1
                 reward = ARENA_REWARDS.get(level, 1)
@@ -151,7 +150,10 @@ async def process_arena_action(channel, user, user_text):
                     await channel.send(f"🏆 *Новый рекорд Арены: {level} уровень!*")
 
             elif "Твоя история окончена" in bot_reply or "Ты пал" in bot_reply:
-                game_active[user.id] = False # Игра окончена
+                game_active[user.id] = False 
+                current_coins = get_balance(user, "💰")
                 await update_role(user, "💰", current_coins // 2)
+                await channel.send("☠️ *Игра окончена. Монеты потеряны.*")
+
         except Exception as e:
             print(f"Ошибка ИИ: {e}")
