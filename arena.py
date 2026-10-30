@@ -12,7 +12,7 @@ chat_histories = {}
 user_choices = {}
 arena_cooldowns = {}
 game_active = {}
-current_arena_level = {} # Храним текущий уровень игрока
+current_arena_level = {}
 
 # --- ВЬЮШКИ ДЛЯ АРЕНЫ ---
 class RaceView(discord.ui.View):
@@ -95,7 +95,6 @@ class VictoryView(discord.ui.View):
         
         await update_role(interaction.user, "💰", current_coins + reward)
         
-        # Обновляем рекорд
         current_record = get_balance(interaction.user, "Арена")
         if level > current_record:
             await update_role(interaction.user, "Арена", level)
@@ -141,7 +140,8 @@ async def process_arena_action(channel, user, user_text):
             
             view_to_send = None
             
-            if "оглушен" in bot_reply.lower() or "пропускаешь ход" in bot_reply.lower():
+            # Исправленная проверка: ищем "ты оглушен", а не просто "оглушение"
+            if "ты оглушен" in bot_reply.lower() or "ты пропускаешь ход" in bot_reply.lower():
                 view_to_send = StunnedView()
             elif "Уйти" in bot_reply or "Продолжить" in bot_reply:
                 view_to_send = VictoryView()
