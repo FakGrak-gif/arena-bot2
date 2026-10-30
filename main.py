@@ -117,7 +117,12 @@ async def on_message(message):
     if message.channel.id == ARENA_CHANNEL_ID:
         if bot.user.mentioned_in(message) or any(w in clean_lower for w in ["сброс", "старт", "начать"]):
             
-            # Проверка кулдауна (раз в час)
+            # Если игра уже идет, просто передаем текст в ИИ (игрок сдается, атакует и т.д.)
+            if game_active.get(message.author.id, False):
+                await process_arena_action(message.channel, message.author, clean_text)
+                return
+            
+            # Если игры нет, проверяем кулдаун
             current_time = time.time()
             last_time = arena_cooldowns.get(message.author.id, 0)
             
@@ -127,7 +132,7 @@ async def on_message(message):
                 return
                 
             arena_cooldowns[message.author.id] = current_time
-            game_active[message.author.id] = False # Сбрасываем перед стартом
+            game_active[message.author.id] = False 
             
             if any(w in clean_lower for w in ["сброс", "старт", "начать"]):
                 await message.reply("Начинаем! Выбери расу:", view=RaceView())
