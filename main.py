@@ -1,12 +1,13 @@
 import discord
 import re
+import time
 from config import DISCORD_TOKEN, CHANNEL_ID_1, CHANNEL_ID_2, ARENA_CHANNEL_ID, WORK_CHANNEL_ID, SHOP_ITEMS
 from database import get_balance
-from arena import RaceView, process_arena_action
+from arena import RaceView, process_arena_action, arena_cooldowns, game_active
 from casino import ExchangeView, play_casino, RouletteView
 from work import do_work
 from shop import ShopView
-from roasts import check_for_roast # <--- ДОБАВИЛИ ИМПОРТ
+from roasts import check_for_roast
 
 intents = discord.Intents.default()
 intents.message_content = True 
@@ -28,12 +29,12 @@ async def on_message(message):
     clean_text = message.content.replace(f'<@{bot.user.id}>', '').strip()
     clean_lower = clean_text.lower()
 
-    # --- ПРОВЕРКА НА ОСКОРБЛЕНИЯ (ТОЛЬКО В WORK И CASINO) ---
+    # --- ОСКОРБЛЕНИЯ ---
     if message.channel.id in [WORK_CHANNEL_ID, CHANNEL_ID_1, CHANNEL_ID_2]:
         roast = check_for_roast(message)
         if roast:
             await message.reply(roast)
-            return # Прерываем выполнение, чтобы бот не делал других действий
+            return 
 
     # --- МАГАЗИН ---
     if clean_lower == "!магазин":
@@ -43,7 +44,7 @@ async def on_message(message):
         await message.reply(shop_text, view=ShopView())
         return
 
-    # --- ОБМЕН ВАЛЮТ ---
+    # --- ОБМЕН ---
     if clean_lower in ["!обмен", "!обменять"]:
         dollars = get_balance(message.author, "💵")
         await message.reply(f"💱 Баланс: {dollars}$\nКурс: 1000$ = 1 монета", view=ExchangeView())
@@ -112,11 +113,25 @@ async def on_message(message):
         await message.reply(top_text)
         return
 
-    # --- АРЕНА ---
-    if bot.user.mentioned_in(message) or any(w in clean_lower for w in ["сброс", "старт", "начать"]):
-        if any(w in clean_lower for w in ["сброс", "старт", "начать"]):
-            await message.reply("Начинаем! Выбери расу:", view=RaceView())
-        else:
-            await process_arena_action(message.channel, message.author, clean_text)
+    # --- АРЕНА (ТОЛЬКО В КАНАЛЕ АРЕНЫ) ---
+    if message.channel.id == ARENA_CHANNEL_ID:
+        if bot.user.mentioned_in(message) or any(w in clean_lower for w in ["сброс", "старт", "начать"]):
+            
+            # Проверка кулдауна (раз в час)
+            current_time = time.time()
+            last_time = arena_cooldowns.get(message.author.id, 0)
+            
+            if current_time - last_time < 3600:
+                remain = int((3600 - (current_time - last_time)) / 60)
+                await message.reply(f"❌ Арена остывает. Подожди {remain} минут.")
+                return
+                
+            arena_cooldowns[message.author.id] = current_time
+            game_active[message.author.id] = False # Сбрасываем перед стартом
+            
+            if any(w in clean_lower for w in ["сброс", "старт", "начать"]):
+                await message.reply("Начинаем! Выбери расу:", view=RaceView())
+            else:
+                await process_arena_action(message.channel, message.author, clean_text)
 
 bot.run(DISCORD_TOKEN)
