@@ -140,7 +140,6 @@ async def process_arena_action(channel, user, user_text):
             
             view_to_send = None
             
-            # Исправленная проверка: ищем "ты оглушен", а не просто "оглушение"
             if "ты оглушен" in bot_reply.lower() or "ты пропускаешь ход" in bot_reply.lower():
                 view_to_send = StunnedView()
             elif "Уйти" in bot_reply or "Продолжить" in bot_reply:
@@ -156,8 +155,17 @@ async def process_arena_action(channel, user, user_text):
             if "Твоя история окончена" in bot_reply or "Ты пал" in bot_reply:
                 game_active[user.id] = False 
                 current_coins = get_balance(user, "💰")
-                await update_role(user, "💰", current_coins // 2)
-                await channel.send("☠️ *Игра окончена. Монеты потеряны.*")
+                
+                # Потеря 5 монет (или меньше, если их нет)
+                loss = min(5, current_coins)
+                new_coins = current_coins - loss
+                
+                await update_role(user, "💰", new_coins)
+                
+                if loss > 0:
+                    await channel.send(f"☠️ *Игра окончена. Ты потерял {loss} монет.*")
+                else:
+                    await channel.send("☠️ *Игра окончена. У тебя нечего было терять.*")
 
         except Exception as e:
             print(f"Ошибка ИИ: {e}")
