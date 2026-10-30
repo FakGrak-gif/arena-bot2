@@ -12,6 +12,7 @@ chat_histories = {}
 user_choices = {}
 arena_cooldowns = {}
 game_active = {}
+current_arena_level = {} # Храним текущий уровень игрока
 
 # --- ВЬЮШКИ ДЛЯ АРЕНЫ ---
 class RaceView(discord.ui.View):
@@ -41,6 +42,7 @@ class ClassView(discord.ui.View):
         text_to_ai = f"Я выбираю расу {race} и класс {class_name}"
         chat_histories[interaction.channel.id] = [{"role": "user", "content": text_to_ai}]
         game_active[interaction.user.id] = True
+        current_arena_level[interaction.user.id] = 1
         await process_arena_action(interaction.channel, interaction.user, text_to_ai)
     @discord.ui.button(label="Воин", style=discord.ButtonStyle.primary)
     async def warrior(self, interaction: discord.Interaction, button: discord.ui.Button): await self.pick_class(interaction, "Воин")
@@ -82,15 +84,31 @@ class CombatView(discord.ui.View):
 class VictoryView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
-    async def send_action(self, interaction: discord.Interaction, action_text: str):
-        await interaction.response.defer()
-        await process_arena_action(interaction.channel, interaction.user, action_text)
+    
     @discord.ui.button(label="Забрать монеты", style=discord.ButtonStyle.success, emoji="💰")
     async def take_money(self, interaction: discord.Interaction, button: discord.ui.Button): 
-        game_active[interaction.user.id] = False # Игра окончена
-        await self.send_action(interaction, "Уйти")
+        game_active[interaction.user.id] = False 
+        
+        # Начисляем монеты ЗДЕСЬ
+        level = current_arena_level.get(interaction.user.id, 1)
+        reward = ARENA_REWARDS.get(level, 1)
+        current_coins = get_balance(interaction.user, "💰")
+        
+        await update_role(interaction.user, "💰", current_coins + reward)
+        
+        # Обновляем рекорд
+        current_record = get_balance(interaction.user, "Арена")
+        if level > current_record:
+            await update_role(interaction.user, "Арена", level)
+            
+        await interaction.response.send_message(f"✅ Ты покинул арену и забрал **{reward}** монет! (Баланс: {current_coins + reward})", ephemeral=True)
+        await interaction.channel.send("🏆 *Твои монеты сохранены!*")
+
     @discord.ui.button(label="Идти дальше", style=discord.ButtonStyle.primary, emoji="🚪")
-    async def continue_run(self, interaction: discord.Interaction, button: discord.ui.Button): await self.send_action(interaction, "Продолжить")
+    async def continue_run(self, interaction: discord.Interaction, button: discord.ui.Button): 
+        current_arena_level[interaction.user.id] = current_arena_level.get(interaction.user.id, 1) + 1
+        await interaction.response.defer()
+        await process_arena_action(interaction.channel, interaction.user, "Продолжить")
 
 class StunnedView(discord.ui.View):
     def __init__(self):
@@ -135,21 +153,7 @@ async def process_arena_action(channel, user, user_text):
             else:
                 await channel.send(bot_reply)
 
-            # Начисление монет только если игрок выбрал "Уйти" или перешел на новый уровень
-            if "Толпа ликует" in bot_reply or "награду за уровень" in bot_reply:
-                current_coins = get_balance(user, "💰")
-                level_match = re.search(r'уровень\s*(\d+)', bot_reply.lower())
-                level = int(level_match.group(1)) if level_match else 1
-                reward = ARENA_REWARDS.get(level, 1)
-                await update_role(user, "💰", current_coins + reward)
-                await channel.send(f"💰 *Начислено {reward} монет!*")
-                
-                current_record = get_balance(user, "Арена")
-                if level > current_record:
-                    await update_role(user, "Арена", level)
-                    await channel.send(f"🏆 *Новый рекорд Арены: {level} уровень!*")
-
-            elif "Твоя история окончена" in bot_reply or "Ты пал" in bot_reply:
+            if "Твоя история окончена" in bot_reply or "Ты пал" in bot_reply:
                 game_active[user.id] = False 
                 current_coins = get_balance(user, "💰")
                 await update_role(user, "💰", current_coins // 2)
