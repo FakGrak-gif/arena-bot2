@@ -29,9 +29,9 @@ async def on_message(message):
     clean_text = message.content.replace(f'<@{bot.user.id}>', '').strip()
     clean_lower = clean_text.lower()
 
-    # --- ОСКОРБЛЕНИЯ ---
+    # --- ОСКОРБЛЕНИЯ (ИСПРАВЛЕНО: ДОБАВЛЕН await) ---
     if message.channel.id in [WORK_CHANNEL_ID, CHANNEL_ID_1, CHANNEL_ID_2]:
-        roast = check_for_roast(message)
+        roast = await check_for_roast(message) 
         if roast:
             await message.reply(roast)
             return 
@@ -117,7 +117,6 @@ async def on_message(message):
     if message.channel.id == ARENA_CHANNEL_ID:
         if bot.user.mentioned_in(message) or any(w in clean_lower for w in ["сброс", "старт", "начать"]):
             
-            # Если игра уже идет, просто передаем текст в ИИ
             if game_active.get(message.author.id, False):
                 await process_arena_action(message.channel, message.author, clean_text)
                 return
