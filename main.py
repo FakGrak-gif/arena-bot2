@@ -3,7 +3,7 @@ import re
 import time
 from config import DISCORD_TOKEN, CHANNEL_ID_1, CHANNEL_ID_2, ARENA_CHANNEL_ID, WORK_CHANNEL_ID, SHOP_ITEMS
 from database import get_balance
-from arena import RaceView, process_arena_action, arena_cooldowns, game_active
+from arena import RaceView, process_arena_action, game_active
 from casino import ExchangeView, play_casino, RouletteView
 from work import do_work
 from shop import ShopView
@@ -117,21 +117,11 @@ async def on_message(message):
     if message.channel.id == ARENA_CHANNEL_ID:
         if bot.user.mentioned_in(message) or any(w in clean_lower for w in ["сброс", "старт", "начать"]):
             
-            # Если игра уже идет, просто передаем текст в ИИ (игрок сдается, атакует и т.д.)
+            # Если игра уже идет, просто передаем текст в ИИ
             if game_active.get(message.author.id, False):
                 await process_arena_action(message.channel, message.author, clean_text)
                 return
             
-            # Если игры нет, проверяем кулдаун
-            current_time = time.time()
-            last_time = arena_cooldowns.get(message.author.id, 0)
-            
-            if current_time - last_time < 3600:
-                remain = int((3600 - (current_time - last_time)) / 60)
-                await message.reply(f"❌ Арена остывает. Подожди {remain} минут.")
-                return
-                
-            arena_cooldowns[message.author.id] = current_time
             game_active[message.author.id] = False 
             
             if any(w in clean_lower for w in ["сброс", "старт", "начать"]):
