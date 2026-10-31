@@ -39,7 +39,6 @@ SHAME_ROLES = [
 # Хранилища
 LAST_ROAST_TIME = {}
 WARNINGS = {} 
-SHAME_LEVEL = {} # Уровень позора для каждого игрока
 
 async def check_for_roast(message):
     msg_lower = message.content.lower()
@@ -48,7 +47,7 @@ async def check_for_roast(message):
         current_time = time.time()
         last_time = LAST_ROAST_TIME.get(message.author.id, 0)
         
-        # Кулдаун на ответы (чтобы не спамить) - 10 секунд
+        # Кулдаун на ответы (10 секунд)
         if current_time - last_time > 10:
             LAST_ROAST_TIME[message.author.id] = current_time
             
@@ -58,23 +57,33 @@ async def check_for_roast(message):
             
             # Если нарушений 3 и больше — наказываем
             if warns >= 3:
-                WARNINGS[message.author.id] = 0 # Сбрасываем счетчик предупреждений
-                
-                # Узнаем текущий уровень наказания (по умолчанию 0)
-                current_level = SHAME_LEVEL.get(message.author.id, 0)
+                WARNINGS[message.author.id] = 0 # Сбрасываем счетчик
                 
                 guild = message.guild
                 
-                # Снимаем все старые роли позора
+                # 1. Определяем текущий уровень по ролям (а не по памяти)
+                current_level = 0
+                for i, role_name in enumerate(SHAME_ROLES):
+                    role = discord.utils.get(guild.roles, name=role_name)
+                    if role and role in message.author.roles:
+                        current_level = i + 1
+                        break
+                
+                # 2. Собираем роли для снятия
+                roles_to_remove = []
                 for role_name in SHAME_ROLES:
                     old_role = discord.utils.get(guild.roles, name=role_name)
                     if old_role and old_role in message.author.roles:
-                        try:
-                            await message.author.remove_roles(old_role)
-                        except:
-                            pass
+                        roles_to_remove.append(old_role)
                 
-                # Выдаем новую роль (если не достигнут максимум)
+                # Снимаем роли
+                if roles_to_remove:
+                    try:
+                        await message.author.remove_roles(*roles_to_remove)
+                    except:
+                        pass
+                
+                # 3. Выдаем новую роль
                 if current_level < len(SHAME_ROLES):
                     new_role_name = SHAME_ROLES[current_level]
                     new_role = discord.utils.get(guild.roles, name=new_role_name)
@@ -85,16 +94,12 @@ async def check_for_roast(message):
                     
                     try:
                         await message.author.add_roles(new_role)
-                        SHAME_LEVEL[message.author.id] = current_level + 1 # Повышаем уровень
-                        
-                        # Отправляем в тайм-аут на 5 минут
                         await message.author.timeout(discord.utils.utcnow() + discord.timedelta(minutes=5), reason="Оскорбление бота")
-                        
                         return f"Ты не понял с первого раза? Получай роль **{new_role_name}** и отправляйся в мут на 5 минут. Наслаждайся позором."
                     except discord.Forbidden:
                         return "Я бы тебя наказал, но у меня нет прав. Позови админа."
                 else:
-                    # Если достигнут максимум, просто даем тайм-аут
+                    # Если достигнут максимум
                     try:
                         await message.author.timeout(discord.utils.utcnow() + discord.timedelta(minutes=5), reason="Оскорбление бота")
                         return "Ты уже на самом дне. Получай мут на 5 минут и подумай о своей жизни."
