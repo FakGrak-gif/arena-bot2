@@ -87,6 +87,13 @@ class VictoryView(discord.ui.View):
     
     @discord.ui.button(label="Забрать монеты", style=discord.ButtonStyle.success, emoji="💰")
     async def take_money(self, interaction: discord.Interaction, button: discord.ui.Button): 
+        button.disabled = True
+        await interaction.message.edit(view=self)
+        
+        if not game_active.get(interaction.user.id, False):
+            await interaction.response.send_message("❌ Ты уже забрал награду.", ephemeral=True)
+            return
+            
         game_active[interaction.user.id] = False 
         
         level = current_arena_level.get(interaction.user.id, 1)
@@ -101,10 +108,12 @@ class VictoryView(discord.ui.View):
             await interaction.channel.send(f"🏆 *Новый рекорд Арены: {level} уровень!*")
             
         await interaction.response.send_message(f"✅ Ты покинул арену и забрал **{reward}** монет! (Баланс: {current_coins + reward})", ephemeral=True)
-        await interaction.channel.send("🏆 *Твои монеты сохранены!*")
 
     @discord.ui.button(label="Идти дальше", style=discord.ButtonStyle.primary, emoji="🚪")
     async def continue_run(self, interaction: discord.Interaction, button: discord.ui.Button): 
+        button.disabled = True
+        await interaction.message.edit(view=self)
+        
         current_arena_level[interaction.user.id] = current_arena_level.get(interaction.user.id, 1) + 1
         await interaction.response.defer()
         await process_arena_action(interaction.channel, interaction.user, "Продолжить")
@@ -156,7 +165,6 @@ async def process_arena_action(channel, user, user_text):
                 game_active[user.id] = False 
                 current_coins = get_balance(user, "💰")
                 
-                # Потеря 5 монет (или меньше, если их нет)
                 loss = min(5, current_coins)
                 new_coins = current_coins - loss
                 
