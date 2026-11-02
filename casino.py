@@ -3,10 +3,8 @@ import random
 from config import CHANNEL_ID_1, CHANNEL_ID_2
 from database import update_role, get_balance
 
-# Глобальная переменная для джекпота
 casino_jackpot = 0
 
-# --- КНОПКИ ОБМЕНА ВАЛЮТ ---
 class ExchangeView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -29,13 +27,22 @@ class ExchangeView(discord.ui.View):
     @discord.ui.button(label="10000$", style=discord.ButtonStyle.danger)
     async def btn_10000(self, interaction: discord.Interaction, button: discord.ui.Button): await self.exchange(interaction, 10000)
 
-# --- КНОПКИ РУЛЕТКИ ---
 class RouletteView(discord.ui.View):
     def __init__(self, bet: int):
         super().__init__(timeout=60)
         self.bet = bet
+        self.played = False
 
     async def play(self, interaction: discord.Interaction, choice: str):
+        if self.played:
+            await interaction.response.send_message("❌ Ты уже сделал ставку в этой игре.", ephemeral=True)
+            return
+            
+        self.played = True
+        for child in self.children:
+            child.disabled = True
+        await interaction.message.edit(view=self)
+        
         current_coins = get_balance(interaction.user, "💰")
         if current_coins < self.bet:
             await interaction.response.send_message("❌ Недостаточно монет.", ephemeral=True)
@@ -82,7 +89,6 @@ class RouletteView(discord.ui.View):
     async def green(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.play(interaction, "green")
 
-# --- ЛОГИКА СЛОТОВ ---
 async def play_casino(message, bet):
     global casino_jackpot
     
@@ -109,7 +115,6 @@ async def play_casino(message, bet):
     emoji_map = {1: "1️⃣", 2: "2️⃣", 3: "3️⃣", 4: "4️⃣", 5: "5️⃣", 6: "6️⃣", 7: "7️⃣", 8: "8️⃣", 9: "9️⃣"}
     roll = random.randint(1, 200)
     
-    # 1. ДЖЕКПОТ (0.5%)
     if roll == 1:
         slot_text = "7️⃣ 7️⃣ 7️⃣"
         jackpot_win = casino_jackpot
@@ -125,7 +130,6 @@ async def play_casino(message, bet):
             await update_role(message.author, "💰", win_coins)
             await message.reply(f"🏆 **ДЖЕКПОТ!** {slot_text}\nВы сорвали куш — +20 монет и **+{jackpot_win} монет из банка**!\n*(Баланс: {win_coins})*")
 
-    # 2. ДВЕ В РЯД (44.5%) - ДЖЕКПОТ НЕ РАСТЕТ
     elif roll <= 90:
         d1 = random.randint(1, 9)
         d2 = random.randint(1, 9)
@@ -141,7 +145,6 @@ async def play_casino(message, bet):
         await update_role(message.author, "💰", win_coins)
         await message.reply(f"🎉 {slot_text}\nВы выиграли +{win_amount} монет!\n*(Баланс: {win_coins})*\n*(Джекпот казино: {casino_jackpot})*")
 
-    # 3. ПРОИГРЫШ (55%) - ДЖЕКПОТ РАСТЕТ
     else:
         d1 = random.randint(1, 9)
         d2 = random.randint(1, 9)
